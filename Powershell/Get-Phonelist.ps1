@@ -7,11 +7,9 @@
   during the past month and generates a report.
 
   .PARAMETER Console
-  # !TODO
   Outputs phonelist to the console instead of an excel sheet.
 
   .PARAMETER OutputPath
-  # !TODO
   Specifies the name and path for the Excel-based output file. By default,
   Get-Phonelist.ps1 generates a name from the date and time it runs, and
   saves the output in the local directory.
@@ -35,7 +33,11 @@
 
 #>
 
-# !TODO Add switch to output as list in the console
+[cmdletbinding()]
+param (
+    [switch]$Console  = $false,
+    [string]$OutputPath = $null
+)
 
 # Install Excel Module
 if (!(Get-Module "ImportExcel")) {
@@ -49,7 +51,6 @@ try {
     Get-MsolDomain -ErrorAction Stop > $null
 }
 catch {
-    if ($null -eq $cred) { $cred = Get-Credential $O365Adminuser }
     Write-Output "Connecting to Office 365 please find the login window to continue"
     Connect-MsolService
     Write-Verbose "MSOL has been connected"
@@ -67,13 +68,14 @@ $user_list = Get-MsolUser | Where-Object IsLicensed | Where-Object LastName |
     Add-Member -MemberType AliasProperty -Name "Cell Phone" -Value MobilePhone -PassThru |
     Sort-Object LastName
 
-# Gets date for output file title
-$CurrentMonth = Get-Date -UFormat %m
-$CurrentMonth = (Get-Culture).DateTimeFormat.GetMonthName($CurrentMonth)
-$CurrentYear = get-date -Format yyyy
-$reportTitle = "$CurrentMonth $CurrentYear Phone List"
 
-# Styles Excel Sheet so all coulms fit on one page when printed
+if($Console) {
+    Write-Verbose "Console parameter used outpuuting to console instead of excel file"
+    $user_list | Format-Table -Property "Last Name", "First Name", "Office" , "Title" , "Office Phone", "Cell Phone"
+    exit 0
+}
+
+# Styles Excel Sheet so all columns fit on one page when printed
 $styles = $(
     # Name Style
     New-ExcelStyle -FontSize 11 -Range "A1:B100" -FontName 'Verdana' -Height 19 -Width 13 -VerticalAlignment Center
@@ -91,12 +93,24 @@ $styles = $(
     New-ExcelStyle -FontSize 13 -Bold -Range "A2:F2" -HorizontalAlignment Center -FontName 'Calibri' -BorderBottom 11 -BorderColor ([System.Drawing.Color]::FromArgb(68, 114, 196)) -FontColor ([System.Drawing.Color]::FromArgb(68, 84, 106)) -Height 20 -BackgroundColor White
 )
 
-# !TODO Generalize output location and make it a switch option
-# Remove the previus file if we already geneated one today
-Remove-Item "\\newserver1\Public\PS Results\Phone List\PhoneList $(get-date -f yyyy-MM-dd).xlsx" -ErrorAction SilentlyContinue
-
-Write-Verbose "Exporting Excel File"
-
-$user_list |
-    Select-Object -Property "Last Name", "First Name", "Office" , "Title" , "Office Phone", "Cell Phone" |
-    Export-Excel "\\newserver1\Public\PS Results\Phone List\PhoneList $(get-date -f yyyy-MM-dd).xlsx" -Title $reportTitle -Style $styles -TableStyle Medium2
+if ($null -eq $OutputPath){
+    # Gets date for output file title
+    $CurrentMonth = Get-Date -UFormat %m
+    $CurrentMonth = (Get-Culture).DateTimeFormat.GetMonthName($CurrentMonth)
+    $CurrentYear = get-date -Format yyyy
+    $reportTitle = "$CurrentMonth $CurrentYear Phone List"
+    # Remove the previous file if we already generated one today
+    Remove-Item ".\PhoneList $(get-date -f yyyy-MM-dd).xlsx" -ErrorAction SilentlyContinue
+    Write-Verbose "Exporting Excel File"
+    $user_list |
+        Select-Object -Property "Last Name", "First Name", "Office" , "Title" , "Office Phone", "Cell Phone" |
+        Export-Excel ".\PhoneList $(get-date -f yyyy-MM-dd).xlsx" -Title $reportTitle -Style $styles -TableStyle Medium2
+} else {
+    # Remove the previous file if we already generated one today
+    Remove-Item $OutputPath -ErrorAction SilentlyContinue
+    Write-Verbose "Exporting Excel File"
+    $user_list |
+        Select-Object -Property "Last Name", "First Name", "Office" , "Title" , "Office Phone", "Cell Phone" |
+        Export-Excel $OutputPath -Title $reportTitle -Style $styles -TableStyle Medium2
+}
+Write-Verbose "Export Completed"
