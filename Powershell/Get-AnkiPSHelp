@@ -1,0 +1,31 @@
+$returnObj = @()
+$commands = Get-Command -ListImported
+$len = $commands.Count
+$i = 0 
+ForEach ($command in $commands) {
+    $i++
+    Write-Progress -Activity "Search in Progress" -Status "$i / $len $($i/$len*100)%" -PercentComplete ($i / $len * 100)
+    $outputrow = ""
+    $helptext = help $command
+    try {
+        $outputrow += "Synopsis" + "`n" + $helptext.Synopsis + "`n`n" + "Description" + "`n"
+        $helptext.description[0] > $null
+        ForEach ($par in $helptext.description) {
+            $outputrow += $par.Text + "`n"
+        }
+        if ($outputrow.Equals("")) {
+            throw "Error trying to do a task"
+        }
+        $obj = New-Object psobject -Property @{`
+                "Command" = $command.Name
+            "Info"        = $outputrow
+        }
+        $returnObj += $obj
+    }
+    catch {
+        Write-Host $command Failed
+    }
+
+}
+
+$returnObj | Export-CSV -path "\\newserver1\public\PS Results\pscmd.csv" -NoTypeInformation -Force
